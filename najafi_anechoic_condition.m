@@ -70,7 +70,32 @@ f(:,:,:)=rho_l/9;
 ux = zeros(Nr, Mc);
 uy = zeros(Nr, Mc);
 
-rho_l = 0.01;   % initial disturbance
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Determining the relaxation mean to najafi anechoic condition
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%       
+uxsq=ux.^2; 
+uysq=uy.^2; 
+usq=uxsq+uysq;
+
+rho=sum(f,3); 
+rt0= w0*rho;
+rt1= w1*rho;
+rt2= w2*rho;
+   
+feq_bar(:,:,1)= rt1 .*(1 +f1*ux +f2.*uxsq -f3*usq);
+feq_bar(:,:,2)= rt1 .*(1 +f1*uy +f2*uysq -f3*usq);
+feq_bar(:,:,3)= rt1 .*(1 -f1*ux +f2*uxsq -f3*usq);
+feq_bar(:,:,4)= rt1 .*(1 -f1*uy +f2*uysq -f3*usq);
+feq_bar(:,:,5)= rt2 .*(1 +f1*(+ux+uy) +f2*(+ux+uy).^2 -f3.*usq);
+feq_bar(:,:,6)= rt2 .*(1 +f1*(-ux+uy) +f2*(-ux+uy).^2 -f3.*usq);
+feq_bar(:,:,7)= rt2 .*(1 +f1*(-ux-uy) +f2*(-ux-uy).^2 -f3.*usq);
+feq_bar(:,:,8)= rt2 .*(1 +f1*(+ux-uy) +f2*(+ux-uy).^2 -f3.*usq);
+feq_bar(:,:,9)= rt0 .*(1 - f3*usq);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Initial disturbance
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%       
+rho_l = 0.01;   
 f(Nr/2, Mc/2,9) = rho_l;
 
 
@@ -107,10 +132,8 @@ for ta = 1 : 150*sqrt(3)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % recalculating rho and u
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    rho=sum(f,3); 
-    
+    rho=sum(f,3);     
 
-        
     rt0= w0*rho;
     rt1= w1*rho;
     rt2= w2*rho;
@@ -138,14 +161,39 @@ for ta = 1 : 150*sqrt(3)
     feq(:,:,8)= rt2 .*(1 +f1*(+ux-uy) +f2*(+ux-uy).^2 -f3.*usq);
     feq(:,:,9)= rt0 .*(1 - f3*usq);
     
-    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% Omega to najafi anechoic condition
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    sigma_pml = 0.2;
+    % Determining term 1
+    c_div_Q = feq;
+    c_div_Q(:,:,1) = [feq(:,1:2,1) feq(:,2:Mc-1,1)] - feq(:,:,1);
+    c_div_Q(:,:,2) = [feq(1:2,:,2);feq(2:Nr-1,:,2)] - feq(:,:,2);
+    c_div_Q(:,:,3) = [feq(:,2:Mc-1,3) feq(:,Mc-1:Mc,3)] - feq(:,:,3);
+    c_div_Q(:,:,4) = [feq(2:Nr-1,:,4);feq(Nr-1:Nr,:,4)] - feq(:,:,4);
+    c_div_Q(:,:,5) = [feq(:,1:2,5) feq(:,2:Mc-1,5)];
+    c_div_Q(:,:,5) = [c_div_Q(1:2,:,5);c_div_Q(2:Nr-1,:,5)] - feq(:,:,5);
+    c_div_Q(:,:,6) = [feq(:,2:Mc-1,6) feq(:,Mc-1:Mc,6)];
+    c_div_Q(:,:,6) = [c_div_Q(1:2,:,6);c_div_Q(2:Nr-1,:,6)] - feq(:,:,6);
+    c_div_Q(:,:,7) = [feq(:,2:Mc-1,7) feq(:,Mc-1:Mc,7)];
+    c_div_Q(:,:,7) = [c_div_Q(2:Nr-1,:,7);c_div_Q(Nr-1:Nr,:,7)] - feq(:,:,7);
+    c_div_Q(:,:,8) = [feq(:,1:2,8) feq(:,2:Mc-1,8)];
+    c_div_Q(:,:,8) = [c_div_Q(2:Nr-1,:,8);c_div_Q(Nr-1:Nr,:,8)] - feq(:,:,8);
+    term_1 = sigma_pml*c_div_Q;
+    % Determining term 2
+    feq_til = feq - feq_bar;
+    term_2 = 2*sigma_pml*feq_til;
+    % Determining term 3
+    term_3 = (sigma_pml^2)*feq;
+    % Determining omega of perfect matched layer
+    omega_pml = -(term_1 + term_2 + term_3);
+    omega_pml(:, 50:Mc, :) = 0;
    
     % Block 5.4
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Collision (relaxation) step
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-   
-    f= (1-omega)*f + omega*feq; 
+    f= (1-omega)*f + omega*feq + omega_pml; 
     
     
     
